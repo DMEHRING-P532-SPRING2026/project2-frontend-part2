@@ -1,34 +1,43 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import config from '../config';
 
-const PlaceOrder = ({ actorName, onOrderPlaced, orderType }) => {
+const PlaceOrder = ({ onOrderPlaced }) => {
   const [patient, setPatient] = useState('');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState('ROUTINE');
+  const [type, setType] = useState('LAB');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [clinicians, setClinicians] = useState([]);
+  const [selectedClinician, setSelectedClinician] = useState('');
+
+  useEffect(() => {
+    const fetchClinicians = async () => {
+      try {
+        const res = await fetch(`${config.BASE_URL}/api/staff/clinicians`);
+        const data = await res.json();
+        setClinicians(data);
+        if (data.length > 0) setSelectedClinician(data[0].id);
+      } catch (err) {
+        console.error('Failed to load clinicians', err);
+      }
+    };
+    fetchClinicians();
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!actorName) {
-      setError('Please enter your name in the Staff panel first.');
-      return;
-    }
-
     setLoading(true);
-    setError('');
-
     try {
       const response = await fetch(`${config.BASE_URL}/api/orders`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          type: orderType,
+          type,
           patient,
-          clinician: actorName,
           description,
           priority,
-          actor: actorName,
+          staffId: selectedClinician,
         }),
       });
 
@@ -40,6 +49,8 @@ const PlaceOrder = ({ actorName, onOrderPlaced, orderType }) => {
       setPatient('');
       setDescription('');
       setPriority('ROUTINE');
+      setType('LAB');
+      setSelectedClinician(clinicians.length > 0 ? clinicians[0].id : '');
 
       if (onOrderPlaced) onOrderPlaced();
     } catch (err) {
@@ -51,6 +62,34 @@ const PlaceOrder = ({ actorName, onOrderPlaced, orderType }) => {
 
   return (
     <form onSubmit={handleSubmit} className="p-4 space-y-4">
+
+      <div>
+        <label className="block text-white text-sm font-bold mb-2">Clinician</label>
+        <select
+          value={selectedClinician}
+          onChange={(e) => setSelectedClinician(parseInt(e.target.value))}
+          className="w-full px-3 py-2 rounded-md bg-neutral-700 text-white border border-neutral-500 focus:outline-none focus:border-neutral-300"
+          required
+        >
+          {clinicians.map((c) => (
+            <option key={c.id} value={c.id}>{c.name}</option>
+          ))}
+        </select>
+      </div>
+
+      <div>
+        <label className="block text-white text-sm font-bold mb-2">Order Type</label>
+        <select
+          value={type}
+          onChange={(e) => setType(e.target.value)}
+          className="w-full px-3 py-2 rounded-md bg-neutral-700 text-white border border-neutral-500 focus:outline-none focus:border-neutral-300"
+        >
+          <option value="LAB">LAB</option>
+          <option value="MEDICATION">MEDICATION</option>
+          <option value="IMAGING">IMAGING</option>
+        </select>
+      </div>
+
       <div>
         <label className="block text-white text-sm font-bold mb-2">Patient</label>
         <input
@@ -90,7 +129,7 @@ const PlaceOrder = ({ actorName, onOrderPlaced, orderType }) => {
 
       <button
         type="submit"
-        disabled={loading}
+        disabled={loading || !selectedClinician}
         className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded disabled:opacity-50"
       >
         {loading ? 'Placing...' : 'Place Order'}
